@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Visual Helper - Explore Safely</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Arial', sans-serif;
+            background-color: #000000;
+            color: #ffffff;
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        header {
+            background-color: #1c2526;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.3rem;
+            color: #60a5fa;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: #9ca3af;
+            margin-bottom: 0.5rem;
+        }
+
+        .credits {
+            font-size: 0.9rem;
+            color: #9ca3af;
+        }
+
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .camera-section, .controls-section {
+            background-color: #1c2526;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+            border: 1px solid #374151;
+        }
+
+        .section-title {
+            font-size: 1.6rem;
+            margin-bottom: 1rem;
+            color: #60a5fa;
+            border-bottom: 2px solid #1e40af;
+            padding-bottom: 0.5rem;
+        }
+
+        #videoContainer {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            background-color: #000000;
+            border-radius: 8px;
+            border: 2px solid #4b5563;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        #videoContainer.active {
+            opacity: 1;
+        }
+
+        #video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #ffffff;
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .btn {
+            background-color: #60a5fa;
+            color: #ffffff;
+            border: none;
+            padding: 1rem 1.5rem;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover, .btn:focus {
+            background-color: #3b82f6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
+            outline: 3px solid #bfdbfe;
+            outline-offset: 2px;
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background-color: #4b5563;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-danger {
+            background-color: #f87171;
+        }
+
+        .btn-danger:hover, .btn-danger:focus {
+            background-color: #ef4444;
+            box-shadow: 0 4px 12px rgba(248, 113, 113, 0.3);
+        }
+
+        .btn-success {
+            background-color: #34d399;
+        }
+
+        .btn-success:hover, .btn-success:focus {
+            background-color: #10b981;
+            box Acknowledgement: 0 4px 12px rgba(52, 211, 153, 0.3);
+        }
+
+        .btn.active {
+            animation: gentle-pulse 2s infinite;
+        }
+
+        @keyframes gentle-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+        }
+
+        .btn.muted {
+            background-color: #4b5563;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+
+        .status-indicator.active {
+            background-color: rgba(52, 211, 153, 0.1);
+            border: 2px solid #34d399;
+            color: #34d399;
+        }
+
+        .status-indicator.inactive {
+            background-color: rgba(248, 113, 113, 0.1);
+            border: 2px solid #f87171;
+            color: #f87171;
+        }
+
+        .status-indicator.processing {
+            background-color: rgba(251, 191, 36, 0.1);
+            border: 2px solid #fbbf24;
+            color: #fbbf24;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: currentColor;
+            animation: gentle-pulse 2s infinite;
+        }
+
+        .feedback-section {
+            background-color: #1f2937;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #60a5fa;
+            transition: background-color 0.5s ease;
+        }
+
+        .feedback-title {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            color: #60a5fa;
+        }
+
+        .feedback-content {
+            font-size: 1rem;
+            line-height: 1.5;
+            min-height: 60px;
+            padding: 0.5rem;
+            background-color: #111827;
+            border-radius: 4px;
+            border: 1px solid #374151;
+            color: #ffffff;
+        }
+
+        .feedback-content.updated {
+            animation: highlight 0.5s ease;
+        }
+
+        @keyframes highlight {
+            0% { background-color: #374151; }
+            100% { background-color: #111827; }
+        }
+
+        .audio-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .volume-slider {
+            flex: 1;
+            height: 6px;
+            background-color: #4b5563;
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background-color: #60a5fa;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .volume-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background-color: #60a5fa;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .keyboard-shortcuts {
+            background-color: #1f2937;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .shortcuts-title {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: #60a5fa;
+        }
+
+        .shortcut-list {
+            list-style: none;
+            font-size: 0. digits: 0.9rem;
+            color: #d1d5db;
+        }
+
+        .shortcut-list li {
+            margin-bottom: 0.25rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .shortcut-key {
+            background-color: #374151;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-family: monospace;
+            font-weight: bold;
+            color: #ffffff;
+        }
+
+        .loading-spinner {
+            display: none;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #374151;
+            border-top: 4px solid #60a5fa;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 1rem auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background-color: rgba(248, 113, 113, 0.1);
+            border: 2px solid #f87171;
+            color: #f87171;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            main {
+                grid-template-columns: 1fr;
+                padding: 1rem;
+                gap: 1rem;
+            }
+
+            .audio-controls {
+                flex-direction: column;
+            }
+
+            .volume-control {
+                min-width: auto;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+回家
+            .btn, .feedback-content, #videoContainer {
+                transition: none;
+                animation: none;
+            }
+
+            .status-dot, .loading-spinner {
+                animation: none;
+            }
+        }
+
+        @media (prefers-high-contrast: high) {
+            body {
+                background-color: #000000;
+                color: #ffffff;
+            }
+
+            .btn {
+                border: 2px solid #ffffff;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Your Visual Helper</h1>
+        <p class="subtitle">Guiding you safely through your surroundings</p>
+        <p class="credits">Made by Amrit, Bhavya, and Tarun</p>
+    </header>
+
+    <main>
+        <section class="camera-section" aria-labelledby="camera-title">
+            <h2 id="camera-title" class="section-title">Live View</h2>
+
+            <div class="error-message" id="errorMessage" role="alert" aria-live="polite">
+                <strong>Oops!</strong> <span id="errorText"></span>
+            </div>
+
+            <div id="videoContainer">
+                <video id="video" autoplay muted playsinline aria-label="Live camera view for exploring your surroundings"></video>
+                <div class="video-overlay" id="videoOverlay" aria-live="polite">
+                    Getting ready...
+                </div>
+            </div>
+
+            <div class="loading-spinner" id="loadingSpinner" aria-label="Working..." role="status"></div>
+
+            <div class="status-indicator inactive" id="cameraStatus" role="status" aria-live="polite">
+                <div class="status-dot"></div>
+                <span id="cameraStatusText">Camera Off</span>
+            </div>
+
+            <div class="button-group">
+                <button id="startCameraBtn" class="btn btn-success" aria-describedby="camera-help">
+                    Turn On Camera (Space)
+                </button>
+                <button id="stopCameraBtn" class="btn btn-danger" disabled aria-describedby="camera-help">
+                    Turn Off Camera (Esc)
+                </button>
+            </div>
+
+            <div id="camera-help" class="sr-only">
+                Use these buttons to start or stop the camera, which helps you explore your environment.
+            </div>
+        </section>
+
+        <section class="controls-section" aria-labelledby="controls-title">
+            <h2 id="controls-title" class="section-title">Explore & Stay Safe</h2>
+
+            <div class="button-group">
+                <button id="recognizeBtn" class="btn" disabled aria-describedby="recognize-help">
+                    What's Around? (R)
+                </button>
+                <button id="safetyBtn" class="btn" disabled aria-describedby="safety-help">
+                    Is It Safe? (S)
+                </button>
+                <button id="continuousBtn" class="btn" disabled aria-describedby="continuous-help">
+                    Keep Checking (C)
+                </button>
+            </div>
+
+            <div id="recognize-help" class="sr-only">
+                Describes what's in your environment based on the camera view.
+            </div>
+            <div id="safety-help" class="sr-only">
+                Checks for potential hazards to help you navigate safely.
+            </div>
+            <div id="continuous-help" class="sr-only">
+                Automatically checks your surroundings every few seconds.
+            </div>
+
+            <div class="audio-controls">
+                <div class="volume-control">
+                    <label for="volumeSlider">Sound Level:</label>
+                    <input type="range" id="volumeSlider" class="volume-slider" min="0" max="1" step="0.1" value="0.8" aria-label="Adjust audio volume">
+                    <span id="volumeDisplay" aria-live="polite">80%</span>
+                </div>
+                <button id="muteBtn" class="btn" aria-pressed="false">
+                    Mute Sound (M)
+                </button>
+            </div>
+
+            <div class="feedback-section">
+                <h3 class="feedback-title">What's Around</h3>
+                <div id="objectFeedback" class="feedback-content" role="log" aria-live="polite" aria-label="Description of surroundings">
+                    Ready to describe your surroundings...
+                </div>
+            </div>
+
+            <div class="feedback-section">
+                <h3 class="feedback-title">Safety Check</h3>
+                <div id="safetyFeedback" class="feedback-content" role="log" aria-live="polite" aria-label="Safety information">
+                    Ready to check for safety...
+                </div>
+            </div>
+
+            <div class="keyboard-shortcuts">
+                <h3 class="shortcuts-title">Quick Keys</h3>
+                <ul class="shortcut-list">
+                    <li><span>Turn On Camera</span> <span class="shortcut-key">Space</span></li>
+                    <li><span>Turn Off Camera</span> <span class="shortcut-key">Esc</span></li>
+                    <li><span>What's Around</span> <span class="shortcut-key">R</span></li>
+                    <li><span>Is It Safe</span> <span class="shortcut-key">S</span></li>
+                    <li><span>Keep Checking</span> <span class="shortcut-key">C</span></li>
+                    <li><span>Mute/Unmute</span> <span class="shortcut-key">M</span></li>
+                </ul>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        class VisualHelper {
+            constructor() {
+                this.video = document.getElementById('video');
+                this.videoContainer = document.getElementById('videoContainer');
+                this.canvas = document.createElement('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.stream = null;
+                this.isProcessing = false;
+                this.continuousMode = false;
+                this.continuousInterval = null;
+                this.isMuted = false;
+                this.volume = 0.8;
+                
+                this.API_BASE = 'https://your-backend-api.com';
+                this.OBJECT_RECOGNITION_ENDPOINT = `${this.API_BASE}/recognize`;
+                this.SAFETY_ASSESSMENT_ENDPOINT = `${this.API_BASE}/safety`;
+                
+                this.initializeElements();
+                this.bindEvents();
+                this.initializeAudio();
+                this.announcePageLoad();
+            }
+
+            initializeElements() {
+                this.elements = {
+                    startCameraBtn: document.getElementById('startCameraBtn'),
+                    stopCameraBtn: document.getElementById('stopCameraBtn'),
+                    recognizeBtn: document.getElementById('recognizeBtn'),
+                    safetyBtn: document.getElementById('safetyBtn'),
+                    continuousBtn: document.getElementById('continuousBtn'),
+                    muteBtn: document.getElementById('muteBtn'),
+                    volumeSlider: document.getElementById('volumeSlider'),
+                    volumeDisplay: document.getElementById('volumeDisplay'),
+                    cameraStatus: document.getElementById('cameraStatus'),
+                    cameraStatusText: document.getElementById('cameraStatusText'),
+                    videoOverlay: document.getElementById('videoOverlay'),
+                    objectFeedback: document.getElementById('objectFeedback'),
+                    safetyFeedback: document.getElementById('safetyFeedback'),
+                    loadingSpinner: document.getElementById('loadingSpinner'),
+                    errorMessage: document.getElementById('errorMessage'),
+                    errorText: document.getElementById('errorText')
+                };
+            }
+
+            bindEvents() {
+                this.elements.startCameraBtn.addEventListener('click', () => this.startCamera());
+                this.elements.stopCameraBtn.addEventListener('click', () => this.stopCamera());
+                this.elements.recognizeBtn.addEventListener('click', () => this.recognizeObjects());
+                this.elements.safetyBtn.addEventListener('click', () => this.assessSafety());
+                this.elements.continuousBtn.addEventListener('click', () => this.toggleContinuousMode());
+                this.elements.muteBtn.addEventListener('click', () => this.toggleMute());
+                this.elements.volumeSlider.addEventListener('input', (e) => this.updateVolume(e.target.value));
+                document.addEventListener('keydown', (e) => this.handleKeyboard(e));
+                this.video.addEventListener('error', (e) => this.handleVideoError(e));
+            }
+
+            initializeAudio() {
+                if (!('speechSynthesis' in window)) {
+                    this.showError('This browser doesn’t support voice feedback, but you can still use the visual features.');
+                    return;
+                }
+                speechSynthesis.addEventListener('voiceschanged', () => {
+                    this.voices = speechSynthesis.getVoices();
+                });
+            }
+
+            announcePageLoad() {
+                setTimeout(() => {
+                    this.speak('Welcome to Your Visual Helper! Press Space to turn on the camera, or Tab to explore the controls.');
+                }, 1000);
+            }
+
+            async startCamera() {
+                try {
+                    this.showLoading(true);
+                    this.clearError();
+                    const isMobile = window.innerWidth < 768;
+                    const constraints = {
+                        video: {
+                            width: { ideal: isMobile ? 640 : 1280 },
+                            height: { ideal: isMobile ? 480 : 720 },
+                            facingMode: 'environment'
+                        },
+                        audio: false
+                    };
+
+                    this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    this.video.srcObject = this.stream;
+                    
+                    this.video.addEventListener('loadedmetadata', () => {
+                        this.canvas.width = this.video.videoWidth;
+                        this.canvas.height = this.video.videoHeight;
+                        this.updateCameraStatus('active', 'Camera On');
+                        this.updateVideoOverlay('Ready to explore!');
+                        this.enableControls(true);
+                        this.speak('Camera’s on! Let’s explore your surroundings together.');
+                        this.showLoading(false);
+                        this.videoContainer.classList.add('active');
+                    });
+
+                } catch (error) {
+                    this.showLoading(false);
+                    this.handleCameraError(error);
+                }
+            }
+
+            stopCamera() {
+                if (this.stream) {
+                    this.stream.getTracks().forEach(track => track.stop());
+                    this.stream = null;
+                }
+                this.video.srcObject = null;
+                this.updateCameraStatus('inactive', 'Camera Off');
+                this.updateVideoOverlay('Camera turned off');
+                this.enableControls(false);
+                this.videoContainer.classList.remove('active');
+                if (this.continuousMode) {
+                    this.toggleContinuousMode();
+                }
+                this.speak('Camera’s off now.');
+            }
+
+            async recognizeObjects() {
+                if (this.isProcessing || !this.stream) return;
+                try {
+                    this.isProcessing = true;
+                    this.showLoading(true);
+                    this.updateVideoOverlay('Checking what’s around...');
+                    this.elements.objectFeedback.textContent = 'Backend is not connected yet';
+                    this.elements.objectFeedback.classList.add('updated');
+                    setTimeout(() => this.elements.objectFeedback.classList.remove('updated'), 500);
+                    this.speak('Backend is not connected yet');
+                } catch (error) {
+                    this.handleAPIError('Checking surroundings', error);
+                } finally {
+                    this.isProcessing = false;
+                    this.showLoading(false);
+                    this.updateVideoOverlay('Ready to explore!');
+                }
+            }
+
+            async assessSafety() {
+                if (this.isProcessing || !this.stream) return;
+                try {
+                    this.isProcessing = true;
+                    this.showLoading(true);
+                    this.updateVideoOverlay('Checking for safety...');
+                    this.elements.safetyFeedback.textContent = 'Backend is not connected yet';
+                    this.elements.safetyFeedback.classList.add('updated');
+                    setTimeout(() => this.elements.safetyFeedback.classList.remove('updated'), 500);
+                    this.speak('Backend is not connected yet');
+                } catch (error) {
+                    this.handleAPIError('Safety check', error);
+                } finally {
+                    this.isProcessing = false;
+                    this.showLoading(false);
+                    this.updateVideoOverlay('Ready to explore!');
+                }
+            }
+
+            toggleContinuousMode() {
+                this.continuousMode = !this.continuousMode;
+                if (this.continuousMode) {
+                    this.elements.continuousBtn.textContent = 'Stop Checking (C)';
+                    this.elements.continuousBtn.classList.add('btn-danger', 'active');
+                    this.elements.continuousBtn.setAttribute('aria-pressed', 'true');
+                    this.continuousInterval = setInterval(() => {
+                        if (!this.isProcessing) {
+                            this.recognizeObjects();
+                            setTimeout(() => {
+                                if (!this.isProcessing) {
+                                    this.assessSafety();
+                                }
+                            }, 2000);
+                        }
+                    }, 5000);
+                    this.speak('Backend is not connected yet');
+                    this.elements.objectFeedback.textContent = 'Backend is not connected yet';
+                    this.elements.safetyFeedback.textContent = 'Backend is not connected yet';
+                    this.elements.objectFeedback.classList.add('updated');
+                    this.elements.safetyFeedback.classList.add('updated');
+                    setTimeout(() => {
+                        this.elements.objectFeedback.classList.remove('updated');
+                        this.elements.safetyFeedback.classList.remove('updated');
+                    }, 500);
+                } else {
+                    this.elements.continuousBtn.textContent = 'Keep Checking (C)';
+                    this.elements.continuousBtn.classList.remove('btn-danger', 'active');
+                    this.elements.continuousBtn.setAttribute('aria-pressed', 'false');
+                    if (this.continuousInterval) {
+                        clearInterval(this.continuousInterval);
+                        this.continuousInterval = null;
+                    }
+                    this.speak('Stopped continuous checking.');
+                }
+            }
+
+            captureFrame() {
+                this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+                return this.canvas.toDataURL('image/jpeg', 0.7);
+            }
+
+            async sendToAPI(endpoint, imageData) {
+                throw new Error('Backend is not connected yet');
+            }
+
+            formatObjectDescription(objects) {
+                return 'Backend is not connected yet';
+            }
+
+            formatSafetyAssessment(safety) {
+                return 'Backend is not connected yet';
+            }
+
+            speak(text, isUrgent = false) {
+                if (this.isMuted || !('speechSynthesis' in window)) return;
+                speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.volume = this.volume;
+                utterance.rate = isUrgent ? 1.2 : 1.0;
+                utterance.pitch = isUrgent ? 1.2 : 1.0;
+                const voices = speechSynthesis.getVoices();
+                const preferredVoice = voices.find(voice => 
+                    voice.lang.startsWith('en') && voice.name.includes('Google')
+                ) || voices.find(voice => voice.lang.startsWith('en'));
+                if (preferredVoice) {
+                    utterance.voice = preferredVoice;
+                }
+                speechSynthesis.speak(utterance);
+            }
+
+            toggleMute() {
+                this.isMuted = !this.isMuted;
+                this.elements.muteBtn.textContent = this.isMuted ? 'Unmute Sound (M)' : 'Mute Sound (M)';
+                this.elements.muteBtn.setAttribute('aria-pressed', this.isMuted.toString());
+                this.elements.muteBtn.classList.toggle('muted', this.isMuted);
+                if (this.isMuted) {
+                    speechSynthesis.cancel();
+                }
+                this.speak(this.isMuted ? 'Sound’s off now' : 'Sound’s back on');
+            }
+
+            updateVolume(value) {
+                this.volume = parseFloat(value);
+                this.elements.volumeDisplay.textContent = `${Math.round(this.volume * 100)}%`;
+            }
+
+            updateCameraStatus(status, text) {
+                this.elements.cameraStatus.className = `status-indicator ${status}`;
+                this.elements.cameraStatusText.textContent = text;
+                this.elements.startCameraBtn.disabled = status === 'active';
+                this.elements.stopCameraBtn.disabled = status !== 'active';
+            }
+
+            updateVideoOverlay(text) {
+                this.elements.videoOverlay.textContent = text;
+            }
+
+            enableControls(enabled) {
+                this.elements.recognizeBtn.disabled = !enabled;
+                this.elements.safetyBtn.disabled = !enabled;
+                this.elements.continuousBtn.disabled = !enabled;
+            }
+
+            showLoading(show) {
+                this.elements.loadingSpinner.style.display = show ? 'block' : 'none';
+            }
+
+            showError(message) {
+                this.elements.errorText.textContent = message;
+                this.elements.errorMessage.style.display = 'block';
+                this.speak(`Something went wrong: ${message}`);
+            }
+
+            clearError() {
+                this.elements.errorMessage.style.display = 'none';
+            }
+
+            handleCameraError(error) {
+                let message = 'Couldn’t start the camera. ';
+                if (error.name === 'NotAllowedError') {
+                    message += 'Please allow camera access and refresh the page.';
+                } else if (error.name === 'NotFoundError') {
+                    message += 'No camera found on this device.';
+                } else if (error.name === 'NotSupportedError') {
+                    message += 'This browser doesn’t support the camera feature.';
+                } else {
+                    message += 'Please check your camera and try again.';
+                }
+                this.showError(message);
+                this.updateCameraStatus('inactive', 'Camera Error');
+            }
+
+            handleVideoError(error) {
+                this.showError('Something went wrong with the video.');
+                this.stopCamera();
+            }
+
+            handleAPIError(operation, error) {
+                const message = `${operation} didn’t work: ${error.message}`;
+                this.showError(message);
+                if (operation.includes('surroundings')) {
+                    this.elements.objectFeedback.textContent = 'Backend is not connected yet';
+                } else {
+                    this.elements.safetyFeedback.textContent = 'Backend is not connected yet';
+                }
+            }
+
+            handleKeyboard(event) {
+                const shortcuts = [' ', 'Escape', 'r', 'R', 's', 'S', 'c', 'C', 'm', 'M'];
+                if (shortcuts.includes(event.key)) {
+                    event.preventDefault();
+                }
+                switch (event.key) {
+                    case ' ':
+                        if (!this.stream) this.startCamera();
+                        break;
+                    case 'Escape':
+                        if (this.stream) this.stopCamera();
+                        break;
+                    case 'r':
+                    case 'R':
+                        if (this.stream && !this.isProcessing) this.recognizeObjects();
+                        break;
+                    case 's':
+                    case 'S':
+                        if (this.stream && !this.isProcessing) this.assessSafety();
+                        break;
+                    case 'c':
+                    case 'C':
+                        if (this.stream) this.toggleContinuousMode();
+                        break;
+                    case 'm':
+                    case 'M':
+                        this.toggleMute();
+                        break;
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new VisualHelper();
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                speechSynthesis.cancel();
+            }
+        });
+    </script>
+</body>
+</html>
