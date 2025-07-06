@@ -518,19 +518,30 @@
             constructor() {
                 this.video = document.getElementById('video');
                 this.videoContainer = document.getElementById('videoContainer');
+
                 this.canvas = document.createElement('canvas');
-                this.ctx = this.canvas.getContext('2d');
+                this.ctx = this.canvas.getContext('2d'); // Correctly initialized here
+
+                // Add a safety check for the context
+                if (!this.ctx) {
+                    console.error("Failed to get 2D rendering context for canvas. Camera features may be disabled.");
+                    // You might want to disable relevant buttons or show a prominent error
+                }
+
                 this.stream = null;
                 this.isProcessing = false;
                 this.continuousMode = false;
-                this.continuousInterval = null;
+                this.continuousInterval = null; // This will now be used for your image upload interval
                 this.isMuted = false;
                 this.volume = 0.8;
-                
-                this.API_BASE = 'https://your-backend-api.com';
-                this.OBJECT_RECOGNITION_ENDPOINT = `${this.API_BASE}/recognize`;
-                this.SAFETY_ASSESSMENT_ENDPOINT = `${this.API_BASE}/safety`;
-                
+
+                this.API_BASE = ''; // Use relative path
+                // this.API_BASE = 'http://localhost:5000'; // Or full URL if Flask is on a different origin
+
+                this.UPLOAD_ENDPOINT = `${this.API_BASE}/uploadLatest`;
+                this.GET_IMAGES_ENDPOINT = `${this.API_BASE}/get_latest_images`;
+                this.WHATS_AROUND_ENDPOINT = `${this.API_BASE}/whatsAround`; // New endpoint
+
                 this.initializeElements();
                 this.bindEvents();
                 this.initializeAudio();
@@ -586,41 +597,154 @@
                 }, 1000);
             }
 
-            async startCamera() {
-                try {
-                    this.showLoading(true);
-                    this.clearError();
-                    const isMobile = window.innerWidth < 768;
-                    const constraints = {
-                        video: {
-                            width: { ideal: isMobile ? 640 : 1280 },
-                            height: { ideal: isMobile ? 480 : 720 },
-                            facingMode: 'environment'
-                        },
-                        audio: false
-                    };
+    // New function to capture and upload images
+    async captureAndUploadImages() {
+        // Essential checks before attempting to draw
+        if (!this.ctx) {
+            console.error("Canvas context (this.ctx) is missing. Cannot capture images.");
+            return;
+        }
+        if (!this.video || this.video.readyState < 2) {
+            // readyState 0: HAVE_NOTHING, 1: HAVE_METADATA, 2: HAVE_CURRENT_DATA, 3: HAVE_FUTURE_DATA, 4: HAVE_ENOUGH_DATA
+            // We need at least HAVE_CURRENT_DATA to draw a frame.
+            console.warn("Video not ready for drawing (readyState:", this.video ? this.video.readyState : 'null', "). Skipping image capture.");
+            return;
+        }
 
-                    this.stream = await navigator.mediaDevices.getUserMedia(constraints);
-                    this.video.srcObject = this.stream;
-                    
-                    this.video.addEventListener('loadedmetadata', () => {
-                        this.canvas.width = this.video.videoWidth;
-                        this.canvas.height = this.video.videoHeight;
-                        this.updateCameraStatus('active', 'Camera On');
-                        this.updateVideoOverlay('Ready to explore!');
-                        this.enableControls(true);
-                        this.speak('Camera’s on! Let’s explore your surroundings together.');
-                        this.showLoading(false);
-                        this.videoContainer.classList.add('active');
-                    });
+        // It's good practice to ensure canvas dimensions match video BEFORE drawing each time
+        // This ensures the captured image isn't distorted if video resolution changes (unlikely with camera stream)
+        // or if canvas was resized for some other purpose.
+        if (this.canvas.width !== this.video.videoWidth || this.canvas.height !== this.video.videoHeight) {
+            this.canvas.width = this.video.videoWidth;
+            this.canvas.height = this.video.videoHeight;
+        }
 
-                } catch (error) {
-                    this.showLoading(false);
-                    this.handleCameraError(error);
+        const images = [];
+        for (let i = 0; i < 7; i++) {
+            try {
+                this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+
+                const blob = await new Promise(resolve => this.canvas.toBlob(resolve, 'image/jpeg', 0.9));
+                if (blob) {
+                    images.push(blob);
+                } else {
+                    console.warn(`Failed to create blob for image ${i}. Blob was null.`);
                 }
+            } catch (error) {
+                console.error(`Error drawing or converting image ${i} to blob:`, error);
+                // Continue to try and get other images, or break if this is critical
+                break; // Break the loop if drawing fails for one, likely to fail for others
             }
 
+            // Small delay to ensure frames are slightly different, crucial for capturing 7 distinct images per second
+            // Distribute the 7 captures evenly within the 1-second interval.
+            await new Promise(resolve => setTimeout(resolve, (1000 / 7)));
+        }
+
+        if (images.length === 0) {
+            console.warn("No images successfully captured to upload. Aborting upload.");
+            return;
+        }
+
+        const formData = new FormData();
+        images.forEach((blob, index) => {
+            formData.append(`files`, blob, `image_${index}.jpeg`);
+        });
+
+        console.log("Uploading data to the server", formData)
+
+        try {
+            const response = await fetch('/uploadLatest', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+            }
+
+            const result = await response.json();
+            console.log('Upload successful:', result);
+        } catch (error) {
+            // console.error('Error uploading images:', error);
+            console.error('Error uploading images:');
+            // Consider what to do on upload failure: retry, notify user, etc.
+        }
+    }
+
+        // Modified startCamera function
+        async startCamera() {
+            try {
+                this.showLoading(true);
+                this.clearError();
+                const isMobile = window.innerWidth < 768;
+                const constraints = {
+                    video: {
+                        width: { ideal: isMobile ? 640 : 1280 },
+                        height: { ideal: isMobile ? 480 : 720 },
+                        facingMode: 'environment'
+                    },
+                    audio: false
+                };
+
+                this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+                this.video.srcObject = this.stream;
+
+                // Use { once: true } to ensure this listener fires only once
+                this.video.addEventListener('loadedmetadata', () => {
+                    // IMPORTANT: Ensure video has valid dimensions before setting canvas
+                    if (this.video.videoWidth === 0 || this.video.videoHeight === 0) {
+                        console.warn("Video metadata loaded but dimensions are zero. This might cause issues.");
+                        // You might want to retry or handle this case.
+                        return;
+                    }
+                    
+                    // Set canvas dimensions immediately after video metadata is loaded
+                    this.canvas.width = this.video.videoWidth;
+                    this.canvas.height = this.video.videoHeight;
+
+                    this.updateCameraStatus('active', 'Camera On');
+                    this.updateVideoOverlay('Ready to explore!');
+                    this.enableControls(true);
+                    this.speak('Camera’s on! Let’s explore your surroundings together.');
+                    this.showLoading(false);
+                    if (this.videoContainer) {
+                        this.videoContainer.classList.add('active');
+                    }
+
+                    // Start the continuous image capture and upload
+                    if (this.continuousInterval) {
+                        clearInterval(this.continuousInterval);
+                    }
+                    // Now, `this.captureAndUploadImages` will be called every 1000ms.
+                    // The checks inside `captureAndUploadImages` will ensure video is ready.
+                    this.continuousInterval = setInterval(() => this.captureAndUploadImages(), 1000);
+                }, { once: true }); // Make sure this listener is set to run only once
+
+                // Additionally, listen for when the video actually starts playing
+                // This is a more robust signal that it's ready for drawing.
+                this.video.addEventListener('play', () => {
+                    console.log("Video started playing. Ready for capture.");
+                    // You could potentially move the setInterval setup here if you only want
+                    // to start capturing AFTER the video is actively playing, not just metadata loaded.
+                    // For immediate capture, loadedmetadata + readyState check is usually sufficient.
+                }, { once: true });
+
+            } catch (error) {
+                this.showLoading(false);
+                this.handleCameraError(error);
+            }
+        }
+
+            // Modified stopCamera function
             stopCamera() {
+                if (this.continuousInterval) {
+                    clearInterval(this.continuousInterval);
+                    this.continuousInterval = null;
+                    console.log('Stopped continuous image upload.');
+                }
+
                 if (this.stream) {
                     this.stream.getTracks().forEach(track => track.stop());
                     this.stream = null;
@@ -629,30 +753,68 @@
                 this.updateCameraStatus('inactive', 'Camera Off');
                 this.updateVideoOverlay('Camera turned off');
                 this.enableControls(false);
-                this.videoContainer.classList.remove('active');
-                if (this.continuousMode) {
+                if (this.videoContainer) {
+                    this.videoContainer.classList.remove('active');
+                }
+                if (this.continuousMode) { // If continuousMode implies something else, it should be handled by your existing toggleContinuousMode
                     this.toggleContinuousMode();
                 }
                 this.speak('Camera’s off now.');
             }
 
+            // MODIFIED recognizeObjects function
             async recognizeObjects() {
-                if (this.isProcessing || !this.stream) return;
+                // Return if already processing or camera is not active
+                if (this.isProcessing || !this.stream) {
+                    this.speak('Camera is not active or still processing. Please wait.');
+                    return;
+                }
+
                 try {
                     this.isProcessing = true;
                     this.showLoading(true);
-                    this.updateVideoOverlay('Checking what’s around...');
-                    this.elements.objectFeedback.textContent = 'Backend is not connected yet';
-                    this.elements.objectFeedback.classList.add('updated');
-                    setTimeout(() => this.elements.objectFeedback.classList.remove('updated'), 500);
-                    this.speak('Backend is not connected yet');
+                    this.updateVideoOverlay('Asking what’s around...');
+                    this.elements.objectFeedback.textContent = 'Fetching names...';
+                    this.elements.objectFeedback.classList.remove('updated'); // Clear animation class
+
+                    const response = await fetch(this.WHATS_AROUND_ENDPOINT);
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+                    }
+
+                    const data = await response.json();
+                    let feedbackMessage;
+                    if (data.description && data.description.length > 0) {
+                        feedbackMessage = `The images mean the following: ${data.description.join(', ')}`;
+                        this.speak(`The images mean the following: ${data.description.join(', ')}`);
+                    } else {
+                        feedbackMessage = data.message || 'No images found in the queue yet.';
+                        this.speak(feedbackMessage);
+                    }
+
+                    this.elements.objectFeedback.textContent = feedbackMessage;
+                    this.elements.objectFeedback.classList.add('updated'); // Trigger animation
+
+                    // Remove the animation class after a short delay
+                    setTimeout(() => this.elements.objectFeedback.classList.remove('updated'), 1500);
+
                 } catch (error) {
-                    this.handleAPIError('Checking surroundings', error);
+                    this.handleAPIError('Getting filenames', error);
+                    this.elements.objectFeedback.textContent = `Error: ${error.message}`;
+                    this.speak(`Error getting what's around: ${error.message}`);
                 } finally {
                     this.isProcessing = false;
                     this.showLoading(false);
-                    this.updateVideoOverlay('Ready to explore!');
+                    this.updateVideoOverlay('Ready to explore!'); // Restore overlay message
                 }
+            }
+
+            // Placeholder for handleAPIError if you have one
+            handleAPIError(context, error) {
+                console.error(`API Error during ${context}:`, error);
+                this.showError(`API Error during ${context}: ${error.message || 'Unknown error'}`);
             }
 
             async assessSafety() {
